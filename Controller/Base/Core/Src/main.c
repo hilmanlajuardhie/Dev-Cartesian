@@ -85,23 +85,23 @@ void execute_motor_steps(const char* axis_name, int total_steps, int forward) {
     if (strcmp(axis_name, "Vertical") == 0) {
         GPIO_PinState dir_state = forward ? GPIO_PIN_SET : GPIO_PIN_RESET;
         // Uses the generated CubeMX pin labels for PB1 and PB4
-        HAL_GPIO_WritePin(GPIOB, Y1_DIR_Pin | Y2_DIR_Pin, dir_state);
+        HAL_GPIO_WritePin(GPIOB, DIR_Y1_Pin | DIR_Y2_Pin, dir_state);
 
         for (int i = 0; i < total_steps; i++) {
             // Uses generated pin labels for PB0 and PB3 (Step pulses)
-            HAL_GPIO_WritePin(GPIOB, Y1_STEP_Pin | Y2_STEP_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, DIR_Y1_Pin | DIR_Y2_Pin, GPIO_PIN_SET);
             delay_us(5);
-            HAL_GPIO_WritePin(GPIOB, Y1_STEP_Pin | Y2_STEP_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, DIR_Y1_Pin | DIR_Y2_Pin, GPIO_PIN_RESET);
             delay_us(5);
         }
     } else {
         GPIO_PinState dir_state = forward ? GPIO_PIN_SET : GPIO_PIN_RESET;
-        HAL_GPIO_WritePin(GPIOB, X_DIR_Pin, dir_state);
+        HAL_GPIO_WritePin(GPIOB, DIR_X_Pin, dir_state);
 
         for (int i = 0; i < total_steps; i++) {
-            HAL_GPIO_WritePin(GPIOB, X_STEP_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GPIOB, STEP_Y1_Pin, GPIO_PIN_SET);
             delay_us(5);
-            HAL_GPIO_WritePin(GPIOB, X_STEP_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GPIOB, STEP_X_Pin, GPIO_PIN_RESET);
             delay_us(5);
         }
     }
