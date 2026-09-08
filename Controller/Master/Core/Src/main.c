@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,7 +33,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define MY_MCU_ID      1    // This microcontroller's ID (e.g., Controller "1")
+#define MAX_ROWS       10   // Rows A to J (0 to 9)
+#define MAX_COLS       10   // Columns 0 to 9
+#define STEPS_PER_UNIT 10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,7 +53,14 @@ UART_HandleTypeDef huart2;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
+int current_row = 0; // Starts at A (0)
+int current_col = 0; // Starts at 0
 
+#define RX_BUFFER_SIZE 15
+uint8_t rx_byte;
+char rx_str_buffer[RX_BUFFER_SIZE];
+uint8_t rx_index = 0;
+volatile uint8_t command_ready = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,7 +76,77 @@ static void MX_USB_PCD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void delay_us(uint32_t us) {
+    __HAL_TIM_SET_COUNTER(&htim2, 0);
+    while (__HAL_TIM_GET_COUNTER(&htim2) < us);
+}
 
+void execute_motor_steps(const char* axis_name, int total_steps, int forward) {
+    if (strcmp(axis_name, "Vertical") == 0) {
+        GPIO_PinState dir_state = forward ? GPIO_PIN_SET : GPIO_PIN_RESET;
+        HAL_GPIO_WritePin(GPIOB, VERT_DIR_Pin, dir_state);
+        HAL_GPIO_WritePin(GPIOB, VERT_EN_Pin, GPIO_PIN_RESET); // Enable driver
+
+        for (int i = 0; i < total_steps; i++) {
+            HAL_GPIO_WritePin(GPIOB, VERT_STEP_Pin, GPIO_PIN_SET);
+            delay_us(5);
+            HAL_GPIO_WritePin(GPIOB, VERT_STEP_Pin, GPIO_PIN_RESET);
+            delay_us(5);
+        }
+    } else {
+        GPIO_PinState dir_state = forward ? GPIO_PIN_SET : GPIO_PIN_RESET;
+        HAL_GPIO_WritePin(GPIOB, HORZ_DIR_Pin, dir_state);
+        HAL_GPIO_WritePin(GPIOB, HORZ_EN_Pin, GPIO_PIN_RESET); // Enable driver
+
+        for (int i = 0; i < total_steps; i++) {
+            HAL_GPIO_WritePin(GPIOB, HORZ_STEP_Pin, GPIO_PIN_SET);
+            delay_us(5);
+            HAL_GPIO_WritePin(GPIOB, HORZ_STEP_Pin, GPIO_PIN_RESET);
+            delay_us(5);
+        }
+    }
+}
+
+void move_to_coordinate(int target_row, int target_col) {
+    if (target_row < 0 || target_row >= MAX_ROWS || target_col < 0 || target_col >= MAX_COLS) {
+        return;
+    }
+
+    int row_diff = target_row - current_row;
+    int col_diff = target_col - current_col;
+
+    if (row_diff != 0) {
+        int forward = (row_diff > 0) ? 1 : 0;
+        int total_steps = abs(row_diff) * STEPS_PER_UNIT;
+        execute_motor_steps("Vertical", total_steps, forward);
+        current_row = target_row;
+    }
+
+    if (col_diff != 0) {
+        int forward = (col_diff > 0) ? 1 : 0;
+        int total_steps = abs(col_diff) * STEPS_PER_UNIT;
+        execute_motor_steps("Horizontal", total_steps, forward);
+        current_col = target_col;
+    }
+}
+
+void run_conveyor_until_sensor(void) {
+    // Set conveyor forward direction and enable driver
+    HAL_GPIO_WritePin(GPIOB, CONV_DIR_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, CONV_EN_Pin, GPIO_PIN_RESET);
+
+    // Loop steps until the laser sensor detects an object 
+    // (Assuming sensor goes LOW when an object blocks the beam)
+    while (HAL_GPIO_ReadPin(LASER_SENS_GPIO_Port, LASER_SENS_Pin) == GPIO_PIN_SET) {
+        HAL_GPIO_WritePin(GPIOB, CONV_STEP_Pin, GPIO_PIN_SET);
+        delay_us(800); // Speed adjustment for conveyor
+        HAL_GPIO_WritePin(GPIOB, CONV_STEP_Pin, GPIO_PIN_RESET);
+        delay_us(800);
+    }
+    
+    // Stop / disable conveyor driver after detection
+    HAL_GPIO_WritePin(GPIOB, CONV_EN_Pin, GPIO_PIN_SET);
+}
 /* USER CODE END 0 */
 
 /**
@@ -101,18 +183,63 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
+  // Start microsecond timer
+  HAL_TIM_Base_Start(&htim2);
 
+  // Start listening for incoming commands on UART1 via interrupt
+  HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+    if (command_ready) {
+      command_ready = 0;
+      
+      if (strlen(rx_str_buffer) >= 3) {
+        int target_mcu_id = rx_str_buffer[0] - '0';
+        char row_char = rx_str_buffer[1];
+        int target_c = atoi(&rx_str_buffer[2]);
+        
+        if (target_mcu_id == MY_MCU_ID) {
+          // Message is intended for THIS controller (e.g., "1B9")
+          int target_r = -1;
+          if (row_char >= 'A' && row_char <= 'J') {
+                        target_r = row_char - 'A';
+                      } else if (row_char >= 'a' && row_char <= 'j') {
+                        target_r = row_char - 'a';
+                      }
+                      
+                      if (target_r >= 0 && target_c >= 0 && target_c < MAX_COLS) {
+                        // 1. Move table to target coordinates
+                        move_to_coordinate(target_r, target_c);
+                        
+                        // 2. Wait 10 seconds
+                        HAL_Delay(10000);
+                        
+                        // 3. Send "5_pick" to picker MCU via UART2
+                        char pick_msg[] = "5_pick\r\n";
+                        HAL_UART_Transmit(&huart2, (uint8_t*)pick_msg, strlen(pick_msg), HAL_MAX_DELAY);
+                        
+                        // 4. Return coordinate placement back to A0 (Row 0, Col 0)
+                        move_to_coordinate(0, 0);
+                        
+                        // 5. Run conveyor until laser sensor detects the object
+                        run_conveyor_until_sensor();
+                      }
+                    } else {
+                      // Message is for another controller (e.g., "3D4"), forward it to UART2
+                      char forward_msg[RX_BUFFER_SIZE + 2];
+                      sprintf(forward_msg, "%s\r\n", rx_str_buffer);
+                      HAL_UART_Transmit(&huart2, (uint8_t*)forward_msg, strlen(forward_msg), HAL_MAX_DELAY);
+                    }
+                  }
+                }
+                /* USER CODE END WHILE */
+                /* USER CODE BEGIN 3 */
+              }
+              /* USER CODE END 3 */
 }
 
 /**
@@ -349,7 +476,22 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) {
+        if (rx_byte == '\n' || rx_byte == '\r') {
+            if (rx_index > 0) {
+                rx_str_buffer[rx_index] = '\0';
+                command_ready = 1;
+                rx_index = 0;
+            }
+        } else {
+            if (rx_index < (RX_BUFFER_SIZE - 1)) {
+                rx_str_buffer[rx_index++] = rx_byte;
+            }
+        }
+        HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+    }
+}
 /* USER CODE END 4 */
 
 /**
