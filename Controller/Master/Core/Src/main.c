@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,10 +34,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MY_MCU_ID      1    // This microcontroller's ID (e.g., Controller "1")
-#define MAX_ROWS       10   // Rows A to J (0 to 9)
-#define MAX_COLS       10   // Columns 0 to 9
-#define STEPS_PER_UNIT 10
+#define MY_MCU_ID      1
+#define MAX_ROWS       10
+#define MAX_COLS       10
+#define STEPS_PER_UNIT 100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,8 +54,8 @@ UART_HandleTypeDef huart2;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-int current_row = 0; // Starts at A (0)
-int current_col = 0; // Starts at 0
+int current_row = 0;
+int current_col = 0;
 
 #define RX_BUFFER_SIZE 15
 uint8_t rx_byte;
@@ -79,6 +80,20 @@ static void MX_USB_PCD_Init(void);
 void delay_us(uint32_t us) {
     __HAL_TIM_SET_COUNTER(&htim2, 0);
     while (__HAL_TIM_GET_COUNTER(&htim2) < us);
+}
+
+void send_status(const char* format, ...) {
+    char buffer[64];
+    va_list args;
+    va_start(args, format);
+    int len = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    
+    if (len > 0) {
+        char final_msg[80];
+        int final_len = snprintf(final_msg, sizeof(final_msg), "%s\r\n", buffer);
+        HAL_UART_Transmit(&huart1, (uint8_t*)final_msg, final_len, HAL_MAX_DELAY);
+    }
 }
 
 void execute_motor_steps(const char* axis_name, int total_steps, int forward) {
@@ -131,21 +146,20 @@ void move_to_coordinate(int target_row, int target_col) {
 }
 
 void run_conveyor_until_sensor(void) {
-    // Set conveyor forward direction and enable driver
     HAL_GPIO_WritePin(GPIOB, CONV_DIR_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(GPIOB, CONV_EN_Pin, GPIO_PIN_RESET);
 
-    // Loop steps until the laser sensor detects an object 
-    // (Assuming sensor goes LOW when an object blocks the beam)
     while (HAL_GPIO_ReadPin(LASER_SENS_GPIO_Port, LASER_SENS_Pin) == GPIO_PIN_SET) {
         HAL_GPIO_WritePin(GPIOB, CONV_STEP_Pin, GPIO_PIN_SET);
-        delay_us(800); // Speed adjustment for conveyor
+        delay_us(1000);
         HAL_GPIO_WritePin(GPIOB, CONV_STEP_Pin, GPIO_PIN_RESET);
-        delay_us(800);
+        delay_us(1000);
     }
+
+    send_status("Laser: Object Detected");
     
-    // Stop / disable conveyor driver after detection
     HAL_GPIO_WritePin(GPIOB, CONV_EN_Pin, GPIO_PIN_SET);
+    send_status("Conveyor: Stoped");
 }
 /* USER CODE END 0 */
 
@@ -194,51 +208,77 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    if (command_ready) {
-      command_ready = 0;
+    if (command_ready){
+command_ready = 0;
+      
+      send_status("1. Message Received: \"%s\"", rx_str_buffer);
       
       if (strlen(rx_str_buffer) >= 3) {
         int target_mcu_id = rx_str_buffer[0] - '0';
         char row_char = rx_str_buffer[1];
         int target_c = atoi(&rx_str_buffer[2]);
         
-        if (target_mcu_id == MY_MCU_ID) {
-          // Message is intended for THIS controller (e.g., "1B9")
+        if (target_mcu_id != MY_MCU_ID) {
+          send_status("2. Address Wrong: \"%s\"", rx_str_buffer);
+          send_status("3. Sending to MCU: %d", target_mcu_id);
+          
+          char forward_msg[RX_BUFFER_SIZE + 2];
+          sprintf(forward_msg, "%s\r\n", rx_str_buffer);
+          HAL_UART_Transmit(&huart2, (uint8_t*)forward_msg, strlen(forward_msg), HAL_MAX_DELAY);
+        } else {
+          send_status("4. Address Confirmed: \"%s\"", rx_str_buffer);
+          send_status("5. Current Position: %d, %c, %d", MY_MCU_ID, current_row + 'A', current_col);
+          
           int target_r = -1;
           if (row_char >= 'A' && row_char <= 'J') {
-                        target_r = row_char - 'A';
-                      } else if (row_char >= 'a' && row_char <= 'j') {
-                        target_r = row_char - 'a';
-                      }
-                      
-                      if (target_r >= 0 && target_c >= 0 && target_c < MAX_COLS) {
-                        // 1. Move table to target coordinates
-                        move_to_coordinate(target_r, target_c);
-                        
-                        // 2. Wait 10 seconds
-                        HAL_Delay(10000);
-                        
-                        // 3. Send "5_pick" to picker MCU via UART2
-                        char pick_msg[] = "5_pick\r\n";
-                        HAL_UART_Transmit(&huart2, (uint8_t*)pick_msg, strlen(pick_msg), HAL_MAX_DELAY);
-                        
-                        // 4. Return coordinate placement back to A0 (Row 0, Col 0)
-                        move_to_coordinate(0, 0);
-                        
-                        // 5. Run conveyor until laser sensor detects the object
-                        run_conveyor_until_sensor();
-                      }
-                    } else {
-                      // Message is for another controller (e.g., "3D4"), forward it to UART2
-                      char forward_msg[RX_BUFFER_SIZE + 2];
-                      sprintf(forward_msg, "%s\r\n", rx_str_buffer);
-                      HAL_UART_Transmit(&huart2, (uint8_t*)forward_msg, strlen(forward_msg), HAL_MAX_DELAY);
-                    }
-                  }
-                }
+              target_r = row_char - 'A';
+          } else if (row_char >= 'a' && row_char <= 'j') {
+              target_r = row_char - 'a';
+          }
+          
+          if (target_r >= 0 && target_c >= 0 && target_c < MAX_COLS) {
+            send_status("6. Moving To Desired Point: \"%c%d\"", row_char, target_c);
+            
+            // 1. Move table to target coordinates
+            move_to_coordinate(target_r, target_c);
+            send_status("7. Current Position: %d, %c, %d", MY_MCU_ID, current_row + 'A', current_col);
+            
+            // 2. Picking phase
+            send_status("8. Picking: \"5 Pick\"");
+            char pick_msg[] = "5_pick\r\n";
+            HAL_UART_Transmit(&huart2, (uint8_t*)pick_msg, strlen(pick_msg), HAL_MAX_DELAY);
+            
+            HAL_Delay(10000);
+            send_status("9. Picking: Done");
+            
+            // 3. Moving to drop point (A0)
+            send_status("10. Moving to Drop point: \"A0\"");
+            move_to_coordinate(0, 0);
+            send_status("11. Current Position: %d, %c, %d", MY_MCU_ID, current_row + 'A', current_col);
+            
+            send_status("12. Droping: \"5 Drop\"");
+            // (Optional drop transmission if needed, status logged)
+            
+            HAL_Delay(2000); // Small drop pause if needed
+            send_status("13. Droping: Done");
+            
+            // 4. Moving to Home
+            send_status("14. Moving to Home \"A0\"");
+            move_to_coordinate(0, 0);
+            send_status("15. Current Position: %d, %c, %d", MY_MCU_ID, current_row + 'A', current_col);
+            
+            // 5. Conveyor delivery
+            send_status("16. Send Conveyor task: \"1 Deliver\"");
+            run_conveyor_until_sensor();
+            
+            send_status("20. Task: Finished");
+          }
+        }
+      }
+    }
                 /* USER CODE END WHILE */
                 /* USER CODE BEGIN 3 */
-              }
+    }
               /* USER CODE END 3 */
 }
 
@@ -307,7 +347,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 71;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -382,7 +422,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
