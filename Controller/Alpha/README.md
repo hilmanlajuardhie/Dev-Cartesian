@@ -2,30 +2,33 @@
 
 ## Overview
 
-Alpha is an early STM32CubeIDE/CubeMX firmware project for controlling a two-axis Cartesian robot. The project is located in `Alpha_test/` and targets an STM32F103C8T6 microcontroller.
+Alpha is a CMake-based STM32F103C8T6 controller project for the Cartesian robot. The current Alpha configuration is more advanced than the earlier two-axis prototype: it includes FreeRTOS, CMSIS-RTOS v2, USB Device DFU support, an independent watchdog, multiple stepper channels, home/limit inputs, and object-detection inputs.
 
-Alpha is a basic motion prototype. It receives coordinate commands through USART1, converts the requested coordinate into motor steps, and generates GPIO step/direction signals for the horizontal and vertical axes.
+The CubeMX configuration is `Alpha.ioc`. The generated application, middleware, and hardware files are kept directly under this folder.
 
 ## Project structure
 
 ```text
 Controller/Alpha/
 ├── README.md
-└── Alpha_test/
-    ├── Alpha_test.ioc
-    ├── .project
-    ├── .cproject
-    ├── Core/
-    │   ├── Inc/
-    │   ├── Src/
-    │   └── Startup/
-    ├── Drivers/
-    │   ├── CMSIS/
-    │   └── STM32F1xx_HAL_Driver/
-    └── STM32F103C8TX_FLASH.ld
+├── Alpha.ioc
+├── CMakeLists.txt
+├── CMakePresets.json
+├── STM32F103xx_FLASH.ld
+├── startup_stm32f103xb.s
+├── Core/
+│   ├── Inc/
+│   └── Src/
+├── Drivers/
+│   ├── CMSIS/
+│   └── STM32F1xx_HAL_Driver/
+├── Middlewares/
+│   ├── ST/STM32_USB_Device_Library/
+│   └── Third_Party/FreeRTOS/
+└── USB_DEVICE/
 ```
 
-The `.ioc` file contains the CubeMX hardware configuration. The `.project` and `.cproject` files configure the project for STM32CubeIDE.
+`Alpha.ioc` is the CubeMX source configuration. `CMakeLists.txt` and `CMakePresets.json` define the build. `Core` contains the application and generated startup support, while `Drivers` and `Middlewares` contain the STM32 HAL, CMSIS, USB, and FreeRTOS code.
 
 ## Target hardware
 
@@ -37,130 +40,193 @@ The `.ioc` file contains the CubeMX hardware configuration. The `.project` and `
 | External oscillator | 8 MHz HSE |
 | Flash | 64 KB |
 | RAM | 20 KB |
-| UART | USART1, 9600 baud, 8-N-1 |
+| UART | USART1, 115200 baud, 8-N-1 |
+| USB | USB FS, DFU class |
+| RTOS | FreeRTOS through CMSIS-RTOS v2 |
+| Watchdog | Independent watchdog, IWDG |
 | Debug | SWD |
 
-The clock uses an 8 MHz external oscillator with PLL multiplier 9:
+The system clock uses an 8 MHz external oscillator and PLL multiplier 9:
 
 ```text
 8 MHz × 9 = 72 MHz
 ```
 
+The USB clock is derived from the PLL at 48 MHz. TIM1 is configured as the HAL/RTOS time base, and the independent watchdog is enabled to reset the MCU if the application stops servicing it.
+
 ## Pin mapping
 
-### USART1
+### UART and USB
 
-| Signal | Pin |
+| Function | Pin |
 |---|---|
 | USART1 TX | PA9 |
 | USART1 RX | PA10 |
+| USB DM | PA11 |
+| USB DP | PA12 |
 
-### Motors
+USART1 is configured for 115200 baud, 8 data bits, no parity, and one stop bit. USB is configured for Device Firmware Upgrade (DFU), which may be used for firmware update workflows if the USB DFU application is completed and the board wiring supports it.
 
-| Axis | Signal | Pin |
-|---|---|---|
-| Vertical motor 1 | Y1 step | PB0 |
-| Vertical motor 1 | Y1 direction | PB1 |
-| Vertical motor 2 | Y2 step | PB3 |
-| Vertical motor 2 | Y2 direction | PB4 |
-| Horizontal motor | X step | PB5 |
-| Horizontal motor | X direction | PB6 |
+### Motor and actuator outputs
 
-The two vertical motors receive synchronized pulses and direction signals. This assumes that they drive opposite sides of the same gantry and are mechanically aligned.
+| Device | Step | Direction | Enable |
+|---|---|---|---|
+| X axis | PA0 | PA1 | PA2 |
+| Y axis | PA3 | PA4 | PA5 |
+| Conveyor | PA6 | PA7 | PB0 |
+| Gripper | PB1 | PB10 | PB11 |
 
-## Coordinate system
+The exact active level for each enable and direction signal must be verified against the connected motor drivers. The physical wiring must match `Alpha.ioc` and the generated definitions in `Core/Inc/main.h`.
 
-Alpha uses a 10-by-20 logical grid:
+### Sensors and limits
 
-```text
-Rows:    A through J
-Columns: 0 through 19
-Steps:   10 steps per coordinate unit
-```
+| Input | Pin |
+|---|---|
+| X home | PB12 |
+| X maximum | PB13 |
+| Y home | PB14 |
+| Y maximum | PB15 |
+| Conveyor detection | PB6 |
+| Gripper detection | PB7 |
 
-The initial software position is assumed to be `A0`. For a target coordinate, Alpha calculates the difference from the current position, moves vertically first, and then moves horizontally.
+These inputs are configured in CubeMX, but their complete use in the application must be verified in `Core/Src/main.c` and related tasks.
 
-Example:
-
-```text
-A0 → C5
-```
-
-produces:
+## Software architecture
 
 ```text
-20 vertical steps
-50 horizontal steps
+Application tasks
+        ↓
+CMSIS-RTOS v2 API
+        ↓
+FreeRTOS kernel
+        ↓
+STM32 HAL / CMSIS
+        ↓
+STM32F103 hardware
 ```
 
-## UART command format
+The application initializes the HAL and peripherals, initializes the RTOS kernel, creates `defaultTask`, and starts the scheduler. The default task implementation is in `Core/Src/freertos.c`.
 
-Commands are text lines terminated by carriage return or newline:
+The main application entry point is `Core/Src/main.c`. Hardware initialization is generated in `Core/Src/stm32f1xx_hal_msp.c`, interrupt handling is in `Core/Src/stm32f1xx_it.c`, and the USB DFU application is under `USB_DEVICE/`.
 
-```text
-<row-letter> <column-number>
-```
+## Current runtime behavior
 
-Examples:
+After reset, Alpha is expected to:
 
-```text
-A 0
-C 5
-j 19
-```
+1. initialize the STM32 HAL;
+2. configure the 72 MHz system clock and 48 MHz USB clock;
+3. initialize GPIO, the watchdog, and USART1;
+4. initialize the USB Device DFU stack;
+5. initialize the CMSIS-RTOS/FreeRTOS kernel;
+6. create the default RTOS task;
+7. start the scheduler;
+8. run the configured application task(s).
 
-Both uppercase and lowercase row letters are accepted. Invalid rows and columns are ignored.
+The current source contains the generated RTOS structure and hardware configuration. Motor motion, homing, conveyor handling, gripper behavior, and sensor responses must be implemented or confirmed in the application tasks before expecting a complete robot cycle.
 
-The receive buffer is small and Alpha does not currently provide a complete acknowledgment or error protocol.
+## Coordinate and motion model
 
-## Firmware flow
+Alpha is intended to control the Cartesian X and Y axes, with additional conveyor and gripper actuators. The workspace generally uses a logical grid of rows and columns, but the current Alpha application should be treated as the authoritative source for the active command format and motion parameters.
 
-After reset, the firmware:
-
-1. initializes the STM32 HAL;
-2. configures the 72 MHz clock;
-3. initializes the motor GPIO outputs;
-4. initializes USART1;
-5. starts interrupt-driven UART reception;
-6. waits for a complete command;
-7. parses the command;
-8. generates step pulses for the requested movement.
-
-The main application is in `Alpha_test/Core/Src/main.c`. Interrupt handling is in `Core/Src/stm32f1xx_it.c`, and UART GPIO/peripheral setup is in `Core/Src/stm32f1xx_hal_msp.c`.
+Do not assume that Alpha uses the same UART protocol, pin mapping, baud rate, or steps-per-unit values as Base or Master. These projects are separate firmware targets.
 
 ## Building Alpha
 
-Alpha is a traditional STM32CubeIDE managed-build project, not a CMake project. Open the `Alpha_test` directory in STM32CubeIDE and select the Debug or Release configuration.
-
-The required compiler is ARM GCC:
+Alpha uses CMake and Ninja with the ARM embedded GCC toolchain. Required tools include:
 
 ```text
+cmake
+ninja
 arm-none-eabi-gcc
+arm-none-eabi-g++
+arm-none-eabi-objcopy
+arm-none-eabi-size
 ```
 
-The generated build output normally includes an ELF file and may include HEX/BIN files depending on CubeIDE settings.
+Build a Debug image:
 
-## Flashing Alpha
+```bash
+cd Controller/Alpha
+cmake --preset Debug
+cmake --build --preset Debug
+```
 
-Use an ST-LINK debugger connected through SWD. Build the project first, then flash the generated ELF, HEX, or BIN file using STM32CubeIDE or STM32CubeProgrammer.
+Build a Release image:
 
-Before flashing, verify the board, oscillator, pin wiring, motor-driver logic voltage, and motor-driver enable state. A successful flash only confirms that the firmware was written; it does not confirm correct mechanical movement.
+```bash
+cd Controller/Alpha
+cmake --preset Release
+cmake --build --preset Release
+```
 
-## Expected behavior after flashing
+The presets use the toolchain file at:
 
-With the board powered and a serial terminal connected to USART1 at 9600 baud, Alpha should wait for coordinate commands. A valid command should cause motor pulses on the corresponding axis.
+```text
+Controller/Alpha/cmake/gcc-arm-none-eabi.cmake
+```
 
-The software assumes that the mechanism starts at `A0`. If the carriage starts elsewhere or loses steps, the tracked position becomes inaccurate.
+The linker script is `STM32F103xx_FLASH.ld`. Build output is normally placed under `Controller/Alpha/build/Debug` or `Controller/Alpha/build/Release`.
 
-## Limitations
+## Flashing and USB DFU
 
-- No homing or limit-switch procedure.
-- No encoder or position feedback.
-- Open-loop positioning.
-- Motor stepping uses a blocking software delay.
-- No acceleration or deceleration profile.
-- UART reception has limited buffering.
-- No emergency-stop input in the application logic.
-- No complete command acknowledgment protocol.
+For SWD development, connect an ST-LINK debugger and flash the generated ELF, HEX, or BIN file using STM32CubeProgrammer, OpenOCD, or a compatible tool.
 
-Alpha should be treated as a prototype/reference controller. For a more integrated controller, see `Controller/Base` and `Controller/Master`.
+Example:
+
+```bash
+STM32_Programmer_CLI -c port=SWD \
+    -w build/Debug/Alpha.elf \
+    -rst
+```
+
+The USB Device configuration uses the DFU class. DFU support requires the USB data lines, USB clock, descriptors, DFU interface implementation, and host-side DFU procedure to be correct. SWD should remain the primary recovery/debug method until USB DFU has been validated.
+
+## What to expect after flashing
+
+A successful flash only confirms that the firmware image was written to the MCU. After reset, the expected observable behavior is:
+
+- the MCU starts the RTOS scheduler;
+- the watchdog is active;
+- USART1 is available at 115200 baud;
+- USB may enumerate as a DFU device if the DFU implementation is complete;
+- configured GPIO outputs reach their startup states;
+- application tasks run according to their RTOS priorities.
+
+Actual motor movement or conveyor/gripper operation will occur only if the corresponding application tasks and command handling are implemented and the hardware is connected correctly.
+
+## Hardware safety checklist
+
+Before enabling motors:
+
+1. Verify the board is an STM32F103C8T6 or compatible STM32F103xB device.
+2. Verify the external oscillator is 8 MHz.
+3. Confirm the motor-driver logic voltage is compatible with 3.3 V GPIO.
+4. Confirm STM32 ground and driver logic ground are connected.
+5. Confirm all step, direction, and enable pins against `Alpha.ioc`.
+6. Test enable polarity with motor power disconnected.
+7. Verify X/Y home and maximum switch wiring.
+8. Provide a physical emergency-stop method.
+9. Test one output and one axis at low speed first.
+10. Confirm that the watchdog cannot create an unsafe repeated motion condition.
+
+## Limitations and development work
+
+- The RTOS task structure is present, but complete machine behavior still requires application-task implementation.
+- Motor control, homing, and sensor handling must be validated on the real hardware.
+- There is no documented complete command protocol in this folder yet.
+- Enable and direction polarities depend on the connected drivers.
+- USB DFU requires end-to-end validation.
+- Watchdog recovery behavior must be tested for safe actuator states.
+- Acceleration, deceleration, travel limits, and emergency-stop behavior must be designed before production use.
+
+## Relationship to other controllers
+
+Alpha, Base, and Master all target STM32F103C8T6 devices, but they are separate firmware projects with different peripherals, pins, timing, and communication settings.
+
+```text
+Alpha   FreeRTOS + USB DFU + multiple actuators and sensors
+Base    Basic STM32 controller foundation
+Master  Integrated motion, conveyor, laser, and UART workflow
+```
+
+Never flash an image from one project onto hardware wired for another project without checking the project-specific `.ioc`, generated headers, linker configuration, and wiring.
