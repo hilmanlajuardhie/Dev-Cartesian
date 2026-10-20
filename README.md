@@ -21,7 +21,7 @@ Dev-Cartesian/
 └── 3D_CAD/                    Mechanical/CAD assets
 ```
 
-The `Alpha`, `Base`, and `Master` directories are CubeMX-generated embedded projects. Their `.ioc` files are the peripheral configuration sources, and their CMake files build the generated HAL/CMSIS projects with ARM GCC. The project-specific README files provide details for Alpha and Base.
+The `Alpha`, `Base`, and `Master` directories are CubeMX-generated embedded projects. Their `.ioc` files are the peripheral configuration sources, and their CMake files build the generated HAL/CMSIS projects with ARM GCC. The project-specific guides are [Simulation/README.md](Simulation/README.md), [Controller/Alpha/README.md](Controller/Alpha/README.md), and [Controller/Base/README.md](Controller/Base/README.md).
 
 ## Robot model
 
@@ -140,6 +140,14 @@ cmake --build --preset Debug
 
 Use the preset names listed by the selected project if they differ. STM32CubeIDE can also import the CubeMX projects, build Debug/Release, and flash through ST-LINK over SWD.
 
+## Current workspace status
+
+Alpha is currently the most feature-rich project structure: it includes FreeRTOS, USB DFU, watchdog support, multiple actuator channels, and home/limit inputs. Its current `main.c` still primarily initializes the platform, creates `defaultTask`, and starts the scheduler; complete robot behavior must be implemented in the RTOS tasks.
+
+Base is a simpler controller foundation. Its current CubeMX labels should be checked carefully because PB6 and PB7 are both associated with `DIR_Y2` in `Base.ioc`, so the second Y motor step signal is not clearly defined.
+
+Master contains the more integrated conveyor, laser, and UART workflow, but it remains a separate firmware target with its own pin map and protocol.
+
 ## Current limitations
 
 - Homing inputs are configured in Alpha, but a complete validated homing and recovery workflow must still be confirmed in the application and on hardware.
@@ -151,6 +159,7 @@ Use the preset names listed by the selected project if they differ. STM32CubeIDE
 - No general acceleration/deceleration profile exists for stepper motors.
 - Direction polarity, driver enable polarity, pulse timing, and wiring require hardware verification.
 - Pin mappings differ between `Base`, `Master`, and `Alpha`.
+- The repository may contain generated IDE metadata, deleted historical files, and untracked project artifacts; review `git status` before committing.
 
 ## Recommended development order
 

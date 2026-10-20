@@ -219,6 +219,11 @@ Before enabling motors:
 - Watchdog recovery behavior must be tested for safe actuator states.
 - Acceleration, deceleration, travel limits, and emergency-stop behavior must be designed before production use.
 
+## Related documentation
+
+- Repository overview: [../../README.md](../../README.md)
+- Base controller: [../Base/README.md](../Base/README.md)
+
 ## Relationship to other controllers
 
 Alpha, Base, and Master all target STM32F103C8T6 devices, but they are separate firmware projects with different peripherals, pins, timing, and communication settings.

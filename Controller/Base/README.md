@@ -53,7 +53,7 @@ The intended Base configuration in `Base.ioc` is:
 | Y1 direction | PB4 |
 | Y1 step | PB5 |
 | Y2 direction | PB6 |
-| Y2 step | PB7 |
+| Y2 output currently labeled `DIR_Y2` in `Base.ioc` | PB7 |
 | USART1 TX/RX | PA9/PA10 |
 | USART2 TX/RX | PA2/PA3 |
 | USB DM/DP | PA11/PA12 |
@@ -70,7 +70,7 @@ Base is intended to provide the basic controller platform for:
 - future controller-to-controller communication;
 - future expansion with sensors and machine peripherals.
 
-The exact application behavior is defined by the current source under `Core/Src`. The `.ioc` configuration alone does not determine the complete machine protocol.
+The exact application behavior is defined by the current source under `Core/Src`. The `.ioc` configuration alone does not determine the complete machine protocol. In particular, `Base.ioc` currently labels both PB6 and PB7 as `DIR_Y2`; the second Y motor step signal is not clearly represented by the generated labels. This must be resolved before connecting the second Y driver.
 
 ## Build system
 
