@@ -177,4 +177,4 @@ The Base and Alpha projects use different pin maps. Firmware built for one proje
 Alpha  →  Base  →  Master
 ```
 
-Alpha is the earlier two-axis CubeIDE prototype. Base provides a more structured STM32/CMake foundation. Master builds on the controller concept with conveyor, sensor, downstream UART, and pick/drop behavior.
+Alpha is the FreeRTOS/USB-enabled controller project. Base provides a simpler STM32/CMake foundation. Master provides a separate integrated conveyor, sensor, downstream-UART, and pick/drop workflow.

@@ -142,7 +142,7 @@ Use the preset names listed by the selected project if they differ. STM32CubeIDE
 
 ## Current workspace status
 
-Alpha is currently the most feature-rich project structure: it includes FreeRTOS, USB DFU, watchdog support, multiple actuator channels, and home/limit inputs. Its current `main.c` still primarily initializes the platform, creates `defaultTask`, and starts the scheduler; complete robot behavior must be implemented in the RTOS tasks.
+Alpha is currently the most feature-rich project structure: it includes FreeRTOS, USB DFU, watchdog support, multiple actuator channels, home/limit inputs, five RTOS tasks, and a motion queue. Its current tasks are still framework loops; the complete serial-to-motion, homing, conveyor, gripper, and safety workflows are not finished.
 
 Base is a simpler controller foundation. Its current CubeMX labels should be checked carefully because PB6 and PB7 are both associated with `DIR_Y2` in `Base.ioc`, so the second Y motor step signal is not clearly defined.
 
@@ -159,6 +159,7 @@ Master contains the more integrated conveyor, laser, and UART workflow, but it r
 - No general acceleration/deceleration profile exists for stepper motors.
 - Direction polarity, driver enable polarity, pulse timing, and wiring require hardware verification.
 - Pin mappings differ between `Base`, `Master`, and `Alpha`.
+- Alpha's motion queue currently has a command-size mismatch that must be resolved before structured commands are exchanged between tasks.
 - The repository may contain generated IDE metadata, deleted historical files, and untracked project artifacts; review `git status` before committing.
 
 ## Recommended development order

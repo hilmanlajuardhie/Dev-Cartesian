@@ -24,7 +24,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
+typedef struct {
+  int32_t target_x;
+  int32_t target_y;
+  uint8_t command_type;
+} MotionCommand_t;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,7 +49,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+extern osMessageQueueId_t motionQueueHandle;
 /* USER CODE END Variables */
 
 /* Private function prototypes -----------------------------------------------*/

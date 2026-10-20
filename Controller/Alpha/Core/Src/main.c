@@ -46,12 +46,12 @@ IWDG_HandleTypeDef hiwdg;
 
 UART_HandleTypeDef huart1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for safetyTask */
+osThreadId_t safetyTaskHandle;
+const osThreadAttr_t safetyTask_attributes = {
+  .name = "safetyTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for serialTask */
 osThreadId_t serialTaskHandle;
@@ -81,13 +81,6 @@ const osThreadAttr_t gateTask_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for safetyTask */
-osThreadId_t safetyTaskHandle;
-const osThreadAttr_t safetyTask_attributes = {
-  .name = "safetyTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
-};
 /* Definitions for motionQueue */
 osMessageQueueId_t motionQueueHandle;
 const osMessageQueueAttr_t motionQueue_attributes = {
@@ -102,12 +95,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_USART1_UART_Init(void);
-void StartDefaultTask(void *argument);
+void StartSafetyTask(void *argument);
 void StartSerialTask(void *argument);
 void StartMotionTask(void *argument);
 void StartConveyorTask(void *argument);
 void StartGateTask(void *argument);
-void StartSafetyTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -177,8 +169,8 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of safetyTask */
+  safetyTaskHandle = osThreadNew(StartSafetyTask, NULL, &safetyTask_attributes);
 
   /* creation of serialTask */
   serialTaskHandle = osThreadNew(StartSerialTask, NULL, &serialTask_attributes);
@@ -191,9 +183,6 @@ int main(void)
 
   /* creation of gateTask */
   gateTaskHandle = osThreadNew(StartGateTask, NULL, &gateTask_attributes);
-
-  /* creation of safetyTask */
-  safetyTaskHandle = osThreadNew(StartSafetyTask, NULL, &safetyTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -385,14 +374,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartSafetyTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+* @brief Function implementing the safetyTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSafetyTask */
+void StartSafetyTask(void *argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
@@ -475,24 +464,6 @@ void StartGateTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartGateTask */
-}
-
-/* USER CODE BEGIN Header_StartSafetyTask */
-/**
-* @brief Function implementing the safetyTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartSafetyTask */
-void StartSafetyTask(void *argument)
-{
-  /* USER CODE BEGIN StartSafetyTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartSafetyTask */
 }
 
 /**

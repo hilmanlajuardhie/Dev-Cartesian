@@ -105,7 +105,7 @@ STM32 HAL / CMSIS
 STM32F103 hardware
 ```
 
-The application initializes the HAL and peripherals, initializes the RTOS kernel, creates `defaultTask`, and starts the scheduler. The default task implementation is in `Core/Src/freertos.c`.
+The application initializes the HAL and peripherals, initializes the RTOS kernel, creates five application tasks, creates `motionQueue`, and starts the scheduler. The task entry points are currently implemented in `Core/Src/main.c`; shared RTOS support and motion-command definitions are in `Core/Src/freertos.c`.
 
 The main application entry point is `Core/Src/main.c`. Hardware initialization is generated in `Core/Src/stm32f1xx_hal_msp.c`, interrupt handling is in `Core/Src/stm32f1xx_it.c`, and the USB DFU application is under `USB_DEVICE/`.
 
@@ -116,13 +116,24 @@ After reset, Alpha is expected to:
 1. initialize the STM32 HAL;
 2. configure the 72 MHz system clock and 48 MHz USB clock;
 3. initialize GPIO, the watchdog, and USART1;
-4. initialize the USB Device DFU stack;
-5. initialize the CMSIS-RTOS/FreeRTOS kernel;
-6. create the default RTOS task;
+4. initialize the CMSIS-RTOS/FreeRTOS kernel;
+5. create the `motionQueue` with space for 10 items;
+6. create `safetyTask`, `serialTask`, `motionTask`, `conveyorTask`, and `gateTask`;
 7. start the scheduler;
-8. run the configured application task(s).
+8. initialize USB DFU from `safetyTask`;
+9. run the configured application tasks.
 
-The current source contains the generated RTOS structure and hardware configuration. At the current implementation stage, `main.c` initializes the peripherals, creates `defaultTask`, and starts the scheduler; the default task is the place where application behavior is developed. Motor motion, homing, conveyor handling, gripper behavior, and sensor responses must be implemented or confirmed in the application tasks before expecting a complete robot cycle.
+The current source contains the RTOS structure and hardware configuration. The five task loops currently yield with short delays and do not yet implement a complete serial-to-motion workflow. Motor motion, homing, conveyor handling, gripper behavior, watchdog servicing, and sensor responses must be implemented or confirmed in the tasks before expecting a complete robot cycle.
+
+The intended task responsibilities are:
+
+| Task | Intended responsibility |
+|---|---|
+| `safetyTask` | USB initialization, safety monitoring, watchdog policy, actuator shutdown |
+| `serialTask` | UART reception, parsing, validation, and command queueing |
+| `motionTask` | X/Y motion and limit-aware step generation |
+| `conveyorTask` | Conveyor movement and detection handling |
+| `gateTask` | Gripper/gate movement and detection handling |
 
 ## Coordinate and motion model
 
@@ -209,9 +220,16 @@ Before enabling motors:
 9. Test one output and one axis at low speed first.
 10. Confirm that the watchdog cannot create an unsafe repeated motion condition.
 
+## Current implementation issues
+
+- `motionQueue` is created with elements of `sizeof(uint8_t)`, while `freertos.c` declares a larger `MotionCommand_t` structure. The queue element size must be changed when structured motion commands are used.
+- `MotionCommand_t` should be moved into a shared header so producer and consumer tasks use the same definition.
+- `freertos.c` uses CMSIS-RTOS types and should include the appropriate CMSIS-RTOS header explicitly.
+- Watchdog refresh behavior is not yet visible in the task implementation; this must be designed so a reset always leaves actuators safe.
+
 ## Limitations and development work
 
-- The RTOS task structure is present, but the current `defaultTask` is still a framework for application behavior rather than a complete machine cycle.
+- The RTOS task structure is present, but the task loops are still framework code rather than a complete machine cycle.
 - Motor control, homing, and sensor handling must be validated on the real hardware.
 - There is no documented complete command protocol in this folder yet.
 - Enable and direction polarities depend on the connected drivers.
