@@ -1,6 +1,6 @@
 # Dev-Cartesian
 
-Dev-Cartesian is a development workspace for a grid-based Cartesian robot. It contains a host-side simulator, several STM32 controller experiments, and CubeMX/CMake projects for STM32F103C8T6 boards.
+Dev-Cartesian is a development workspace for a grid-based Cartesian robot. It contains a host-side simulator and three STM32F103C8T6 firmware projects: `Alpha`, `Base`, and `Master`. The current controller projects use STM32CubeMX-generated code and CMake; Alpha additionally includes FreeRTOS and USB DFU support.
 
 ## Repository layout
 
@@ -12,14 +12,16 @@ Dev-Cartesian/
 ├── Controller/
 │   ├── Base/                   Early STM32 controller project
 │   ├── Master/                 Integrated controller project
-│   ├── Alpha/                  Earlier CubeIDE/CubeMX experiment
+│   ├── Alpha/                  FreeRTOS/USB-enabled controller
 │   ├── S_1/                    Standalone simulator variant
 │   ├── S_2/                    Standalone simulator variant
 │   └── S_3/                    Standalone simulator variant
+├── Controller/Test/            Current test area, if populated
+├── Controller/Base.zip         Archived Base project package
 └── 3D_CAD/                    Mechanical/CAD assets
 ```
 
-The `Base` and `Master` directories are CubeMX-generated embedded projects. Their `.ioc` files are the peripheral configuration sources, and their CMake files build the generated HAL/CMSIS projects with ARM GCC.
+The `Alpha`, `Base`, and `Master` directories are CubeMX-generated embedded projects. Their `.ioc` files are the peripheral configuration sources, and their CMake files build the generated HAL/CMSIS projects with ARM GCC. The project-specific README files provide details for Alpha and Base.
 
 ## Robot model
 
@@ -81,7 +83,34 @@ The Master receives addressed text commands on USART1. It forwards commands for 
 
 ## Controller/Alpha
 
-`Controller/Alpha/Alpha_test` is an older CubeIDE/CubeMX two-axis controller using USART1 and GPIO step/direction signals. Its pins and generated files differ from `Base` and `Master`, so those projects are not electrically interchangeable without checking the `.ioc`, generated headers, and wiring.
+`Controller/Alpha` is now a CMake-based STM32F103C8T6 project with a larger machine-control configuration than the earlier Alpha prototype. Its CubeMX configuration enables:
+
+- FreeRTOS through CMSIS-RTOS v2;
+- USB Device DFU support;
+- USART1 at 9600 baud;
+- independent X, Y, conveyor, and gripper stepper signals;
+- X/Y home and maximum limit inputs;
+- conveyor and gripper detection inputs;
+- an independent watchdog;
+- TIM1 as the RTOS time base.
+
+The main motion and RTOS application files are under `Controller/Alpha/Core`. FreeRTOS sources are under `Controller/Alpha/Middlewares/Third_Party/FreeRTOS`, and USB DFU sources are under `Controller/Alpha/USB_DEVICE` and `Middlewares/ST/STM32_USB_Device_Library`.
+
+The main Alpha signals are:
+
+| Function | Pin |
+|---|---|
+| X step/direction/enable | PA0/PA1/PA2 |
+| Y step/direction/enable | PA3/PA4/PA5 |
+| Conveyor step/direction/enable | PA6/PA7/PB0 |
+| Gripper step/direction/enable | PB1/PB10/PB11 |
+| X home / maximum | PB12/PB13 |
+| Y home / maximum | PB14/PB15 |
+| Conveyor/gripper detection | PB6/PB7 |
+| USART1 TX/RX | PA9/PA10 |
+| USB DM/DP | PA11/PA12 |
+
+Alpha is not electrically interchangeable with Base or Master. Always verify its own `Alpha.ioc`, generated `main.h`, and wiring.
 
 ## Embedded architecture
 
@@ -93,10 +122,18 @@ Important generated files include `Core/Src/main.c` for application logic, `stm3
 
 ## Build instructions
 
-The embedded projects require CMake and ARM embedded GCC, including `arm-none-eabi-gcc`:
+The embedded projects require CMake, Ninja, and ARM embedded GCC, including `arm-none-eabi-gcc`:
 
 ```bash
 cd Controller/Master
+cmake --preset Debug
+cmake --build --preset Debug
+```
+
+Alpha can be built in the same way:
+
+```bash
+cd Controller/Alpha
 cmake --preset Debug
 cmake --build --preset Debug
 ```
@@ -105,7 +142,8 @@ Use the preset names listed by the selected project if they differ. STM32CubeIDE
 
 ## Current limitations
 
-- No homing sequence, encoder feedback, or reliable position recovery.
+- Homing inputs are configured in Alpha, but a complete validated homing and recovery workflow must still be confirmed in the application and on hardware.
+- Basic open-loop controllers have no encoder feedback or reliable position recovery.
 - Motion and conveyor routines are blocking.
 - UART data is shared between interrupt callbacks and the main loop without a robust command queue.
 - No single documented packet format, checksum, acknowledgment, or error protocol exists across controllers.
