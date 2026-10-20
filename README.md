@@ -87,14 +87,14 @@ The Master receives addressed text commands on USART1. It forwards commands for 
 
 - FreeRTOS through CMSIS-RTOS v2;
 - USB Device DFU support;
-- USART1 at 9600 baud;
+- USART1 at 115200 baud;
 - independent X, Y, conveyor, and gripper stepper signals;
 - X/Y home and maximum limit inputs;
 - conveyor and gripper detection inputs;
 - an independent watchdog;
 - TIM1 as the RTOS time base.
 
-The main motion and RTOS application files are under `Controller/Alpha/Core`. FreeRTOS sources are under `Controller/Alpha/Middlewares/Third_Party/FreeRTOS`, and USB DFU sources are under `Controller/Alpha/USB_DEVICE` and `Middlewares/ST/STM32_USB_Device_Library`.
+The main motion and RTOS application files are under `Controller/Alpha/Core`. FreeRTOS sources are under `Controller/Alpha/Middlewares/Third_Party/FreeRTOS`, and USB DFU sources are under `Controller/Alpha/USB_DEVICE` and `Controller/Alpha/Middlewares/ST/STM32_USB_Device_Library`.
 
 The main Alpha signals are:
 
@@ -138,7 +138,7 @@ cmake --preset Debug
 cmake --build --preset Debug
 ```
 
-Use the preset names listed by the selected project if they differ. STM32CubeIDE can also import `Base` or `Master`, build Debug/Release, and flash through ST-LINK over SWD.
+Use the preset names listed by the selected project if they differ. STM32CubeIDE can also import the CubeMX projects, build Debug/Release, and flash through ST-LINK over SWD.
 
 ## Current limitations
 

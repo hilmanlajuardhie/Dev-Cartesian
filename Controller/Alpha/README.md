@@ -122,7 +122,7 @@ After reset, Alpha is expected to:
 7. start the scheduler;
 8. run the configured application task(s).
 
-The current source contains the generated RTOS structure and hardware configuration. Motor motion, homing, conveyor handling, gripper behavior, and sensor responses must be implemented or confirmed in the application tasks before expecting a complete robot cycle.
+The current source contains the generated RTOS structure and hardware configuration. At the current implementation stage, `main.c` initializes the peripherals, creates `defaultTask`, and starts the scheduler; the default task is the place where application behavior is developed. Motor motion, homing, conveyor handling, gripper behavior, and sensor responses must be implemented or confirmed in the application tasks before expecting a complete robot cycle.
 
 ## Coordinate and motion model
 
@@ -211,7 +211,7 @@ Before enabling motors:
 
 ## Limitations and development work
 
-- The RTOS task structure is present, but complete machine behavior still requires application-task implementation.
+- The RTOS task structure is present, but the current `defaultTask` is still a framework for application behavior rather than a complete machine cycle.
 - Motor control, homing, and sensor handling must be validated on the real hardware.
 - There is no documented complete command protocol in this folder yet.
 - Enable and direction polarities depend on the connected drivers.

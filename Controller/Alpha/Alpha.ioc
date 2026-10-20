@@ -2,8 +2,10 @@
 CAD.formats=
 CAD.pinconfig=
 CAD.provider=
-FREERTOS.IPParameters=Tasks01,configTOTAL_HEAP_SIZE
-FREERTOS.Tasks01=defaultTask,24,128,StartDefaultTask,Default,NULL,Dynamic,NULL,NULL
+FREERTOS.FootprintOK=true
+FREERTOS.IPParameters=Tasks01,configTOTAL_HEAP_SIZE,FootprintOK,Queues01
+FREERTOS.Queues01=motionQueue,10,uint8_t,0,Dynamic,NULL,NULL
+FREERTOS.Tasks01=defaultTask,24,128,StartDefaultTask,Default,NULL,Dynamic,NULL,NULL;serialTask,24,256,StartSerialTask,Default,NULL,Dynamic,NULL,NULL;motionTask,32,256,StartMotionTask,Default,NULL,Dynamic,NULL,NULL;conveyorTask,24,256,StartConveyorTask,Default,NULL,Dynamic,NULL,NULL;gateTask,24,256,StartGateTask,Default,NULL,Dynamic,NULL,NULL;safetyTask,40,128,StartSafetyTask,Default,NULL,Dynamic,NULL,NULL
 FREERTOS.configTOTAL_HEAP_SIZE=6144
 File.Version=6
 GPIO.groupedBy=Group By Peripherals
@@ -255,3 +257,4 @@ VP_SYS_VS_tim1.Signal=SYS_VS_tim1
 VP_USB_DEVICE_VS_USB_DEVICE_DFU_FS.Mode=DFU_FS
 VP_USB_DEVICE_VS_USB_DEVICE_DFU_FS.Signal=USB_DEVICE_VS_USB_DEVICE_DFU_FS
 board=custom
+rtos.0.ip=FREERTOS

@@ -53,6 +53,46 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for serialTask */
+osThreadId_t serialTaskHandle;
+const osThreadAttr_t serialTask_attributes = {
+  .name = "serialTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for motionTask */
+osThreadId_t motionTaskHandle;
+const osThreadAttr_t motionTask_attributes = {
+  .name = "motionTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for conveyorTask */
+osThreadId_t conveyorTaskHandle;
+const osThreadAttr_t conveyorTask_attributes = {
+  .name = "conveyorTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for gateTask */
+osThreadId_t gateTaskHandle;
+const osThreadAttr_t gateTask_attributes = {
+  .name = "gateTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for safetyTask */
+osThreadId_t safetyTaskHandle;
+const osThreadAttr_t safetyTask_attributes = {
+  .name = "safetyTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for motionQueue */
+osMessageQueueId_t motionQueueHandle;
+const osMessageQueueAttr_t motionQueue_attributes = {
+  .name = "motionQueue"
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -63,6 +103,11 @@ static void MX_GPIO_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void *argument);
+void StartSerialTask(void *argument);
+void StartMotionTask(void *argument);
+void StartConveyorTask(void *argument);
+void StartGateTask(void *argument);
+void StartSafetyTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -123,6 +168,10 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of motionQueue */
+  motionQueueHandle = osMessageQueueNew (10, sizeof(uint8_t), &motionQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -130,6 +179,21 @@ int main(void)
   /* Create the thread(s) */
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of serialTask */
+  serialTaskHandle = osThreadNew(StartSerialTask, NULL, &serialTask_attributes);
+
+  /* creation of motionTask */
+  motionTaskHandle = osThreadNew(StartMotionTask, NULL, &motionTask_attributes);
+
+  /* creation of conveyorTask */
+  conveyorTaskHandle = osThreadNew(StartConveyorTask, NULL, &conveyorTask_attributes);
+
+  /* creation of gateTask */
+  gateTaskHandle = osThreadNew(StartGateTask, NULL, &gateTask_attributes);
+
+  /* creation of safetyTask */
+  safetyTaskHandle = osThreadNew(StartSafetyTask, NULL, &safetyTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -339,6 +403,96 @@ void StartDefaultTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartSerialTask */
+/**
+* @brief Function implementing the serialTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSerialTask */
+void StartSerialTask(void *argument)
+{
+  /* USER CODE BEGIN StartSerialTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartSerialTask */
+}
+
+/* USER CODE BEGIN Header_StartMotionTask */
+/**
+* @brief Function implementing the motionTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartMotionTask */
+void StartMotionTask(void *argument)
+{
+  /* USER CODE BEGIN StartMotionTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartMotionTask */
+}
+
+/* USER CODE BEGIN Header_StartConveyorTask */
+/**
+* @brief Function implementing the conveyorTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartConveyorTask */
+void StartConveyorTask(void *argument)
+{
+  /* USER CODE BEGIN StartConveyorTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartConveyorTask */
+}
+
+/* USER CODE BEGIN Header_StartGateTask */
+/**
+* @brief Function implementing the gateTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartGateTask */
+void StartGateTask(void *argument)
+{
+  /* USER CODE BEGIN StartGateTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartGateTask */
+}
+
+/* USER CODE BEGIN Header_StartSafetyTask */
+/**
+* @brief Function implementing the safetyTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSafetyTask */
+void StartSafetyTask(void *argument)
+{
+  /* USER CODE BEGIN StartSafetyTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartSafetyTask */
 }
 
 /**
